@@ -521,7 +521,7 @@ filter f = unstream . inplace (MStream.filter f) . stream
 
 -- | /O(n)/ Drop elements that do not satisfy the predicate which is applied to
 -- values and their indices
-ifilter :: Vector v a => (Int -> a -> Bool) -> v a -> v a
+ifilter :: Streamable v => (Int -> Element v -> Bool) -> v -> v
 {-# INLINE ifilter #-}
 ifilter f = unstream
           . inplace (MStream.map snd . MStream.filter (uncurry f)
@@ -529,22 +529,22 @@ ifilter f = unstream
           . stream
 
 -- | /O(n)/ Drop elements that do not satisfy the monadic predicate
-filterM :: (Monad m, Vector v a) => (a -> m Bool) -> v a -> m (v a)
+filterM :: (Monad m, Streamable v) => (Element v -> m Bool) -> v -> m v
 {-# INLINE filterM #-}
 filterM f = unstreamM . Stream.filterM f . stream
 
 -- | /O(n)/ Yield the longest prefix of elements satisfying the predicate
 -- without copying.
-takeWhile :: Vector v a => (a -> Bool) -> v a -> v a
+takeWhile :: Streamable v => (Element v -> Bool) -> v -> v
 {-# INLINE takeWhile #-}
 takeWhile f = unstream . Stream.takeWhile f . stream
 
 -- | /O(n)/ Drop the longest prefix of elements that satisfy the predicate
 -- without copying.
-dropWhile :: Vector v a => (a -> Bool) -> v a -> v a
+dropWhile :: Streamable v => (Element v -> Bool) -> v -> v
 {-# INLINE dropWhile #-}
 dropWhile f = unstream . Stream.dropWhile f . stream
-
+{-
 -- Parititioning
 -- -------------
 
@@ -552,7 +552,7 @@ dropWhile f = unstream . Stream.dropWhile f . stream
 -- elements that satisfy the predicate and the second one those that don't. The
 -- relative order of the elements is preserved at the cost of a sometimes
 -- reduced performance compared to 'unstablePartition'.
-partition :: Vector v a => (a -> Bool) -> v a -> (v a, v a)
+partition :: Streamable v => (Element v -> Bool) -> v -> (v, v)
 {-# INLINE partition #-}
 partition f = partition_stream f . stream
 
@@ -608,49 +608,50 @@ unstablePartition_new f (New.New p) = runST (
 
 -- | /O(n)/ Split the vector into the longest prefix of elements that satisfy
 -- the predicate and the rest without copying.
-span :: Vector v a => (a -> Bool) -> v a -> (v a, v a)
+span :: Streamable v => (Element v -> Bool) -> v -> (v, v)
 {-# INLINE span #-}
 span f = break (not . f)
 
 -- | /O(n)/ Split the vector into the longest prefix of elements that do not
 -- satisfy the predicate and the rest without copying.
-break :: Vector v a => (a -> Bool) -> v a -> (v a, v a)
+break :: Streamable v => (Element v -> Bool) -> v -> (v, v)
 {-# INLINE break #-}
 break f xs = case findIndex f xs of
                Just i  -> (unsafeSlice 0 i xs, unsafeSlice i (length xs - i) xs)
                Nothing -> (xs, empty)
     
+-}
 
 -- Searching
 -- ---------
 
 infix 4 `elem`
 -- | /O(n)/ Check if the vector contains an element
-elem :: (Vector v a, Eq a) => a -> v a -> Bool
+elem :: (Streamable v, Eq (Element v)) => Element v -> v -> Bool
 {-# INLINE elem #-}
 elem x = Stream.elem x . stream
 
 infix 4 `notElem`
 -- | /O(n)/ Check if the vector does not contain an element (inverse of 'elem')
-notElem :: (Vector v a, Eq a) => a -> v a -> Bool
+notElem :: (Streamable v, Eq (Element v)) => Element v -> v -> Bool
 {-# INLINE notElem #-}
 notElem x = Stream.notElem x . stream
 
 -- | /O(n)/ Yield 'Just' the first element matching the predicate or 'Nothing'
 -- if no such element exists.
-find :: Vector v a => (a -> Bool) -> v a -> Maybe a
+find :: Streamable v => (Element v -> Bool) -> v -> Maybe (Element v)
 {-# INLINE find #-}
 find f = Stream.find f . stream
 
 -- | /O(n)/ Yield 'Just' the index of the first element matching the predicate
 -- or 'Nothing' if no such element exists.
-findIndex :: Vector v a => (a -> Bool) -> v a -> Maybe Int
+findIndex :: Streamable v => (Element v -> Bool) -> v -> Maybe Int
 {-# INLINE findIndex #-}
 findIndex f = Stream.findIndex f . stream
 
 -- | /O(n)/ Yield the indices of elements satisfying the predicate in ascending
 -- order.
-findIndices :: (Vector v a, Vector v Int) => (a -> Bool) -> v a -> v Int
+findIndices :: (Streamable v, Streamable v', Element v' ~ Int) => (Element v -> Bool) -> v -> v'
 {-# INLINE findIndices #-}
 findIndices f = unstream
               . inplace (MStream.map fst . MStream.filter (f . snd)
@@ -660,13 +661,13 @@ findIndices f = unstream
 -- | /O(n)/ Yield 'Just' the index of the first occurence of the given element or
 -- 'Nothing' if the vector does not contain the element. This is a specialised
 -- version of 'findIndex'.
-elemIndex :: (Vector v a, Eq a) => a -> v a -> Maybe Int
+elemIndex :: (Streamable v, Eq (Element v)) => Element v -> v -> Maybe Int
 {-# INLINE elemIndex #-}
 elemIndex x = findIndex (x==)
 
 -- | /O(n)/ Yield the indices of all occurences of the given element in
 -- ascending order. This is a specialised version of 'findIndices'.
-elemIndices :: (Vector v a, Vector v Int, Eq a) => a -> v a -> v Int
+elemIndices :: (Streamable v, Streamable v', Element v' ~ Int, Eq (Element v)) => Element v -> v -> v'
 {-# INLINE elemIndices #-}
 elemIndices x = findIndices (x==)
 
@@ -674,37 +675,37 @@ elemIndices x = findIndices (x==)
 -- -------
 
 -- | /O(n)/ Left fold
-foldl :: Vector v b => (a -> b -> a) -> a -> v b -> a
+foldl :: Streamable v => (a -> Element v -> a) -> a -> v -> a
 {-# INLINE foldl #-}
 foldl f z = Stream.foldl f z . stream
 
 -- | /O(n)/ Left fold on non-empty vectors
-foldl1 :: Vector v a => (a -> a -> a) -> v a -> a
+foldl1 :: Streamable v => (Element v -> Element v -> Element v) -> v -> Element v
 {-# INLINE foldl1 #-}
 foldl1 f = Stream.foldl1 f . stream
 
 -- | /O(n)/ Left fold with strict accumulator
-foldl' :: Vector v b => (a -> b -> a) -> a -> v b -> a
+foldl' :: Streamable v => (a -> Element v -> a) -> a -> v -> a
 {-# INLINE foldl' #-}
 foldl' f z = Stream.foldl' f z . stream
 
 -- | /O(n)/ Left fold on non-empty vectors with strict accumulator
-foldl1' :: Vector v a => (a -> a -> a) -> v a -> a
+foldl1' :: Streamable v => (Element v -> Element v -> Element v) -> v -> Element v
 {-# INLINE foldl1' #-}
 foldl1' f = Stream.foldl1' f . stream
 
 -- | /O(n)/ Right fold
-foldr :: Vector v a => (a -> b -> b) -> b -> v a -> b
+foldr :: Streamable v => (Element v -> b -> b) -> b -> v -> b
 {-# INLINE foldr #-}
 foldr f z = Stream.foldr f z . stream
 
 -- | /O(n)/ Right fold on non-empty vectors
-foldr1 :: Vector v a => (a -> a -> a) -> v a -> a
+foldr1 :: Streamable v => (Element v -> Element v -> Element v) -> v -> Element v
 {-# INLINE foldr1 #-}
 foldr1 f = Stream.foldr1 f . stream
-
+{-
 -- | /O(n)/ Right fold with a strict accumulator
-foldr' :: Vector v a => (a -> b -> b) -> b -> v a -> b
+foldr' :: Streamable v => (Element v -> b -> b) -> b -> v -> b
 {-# INLINE foldr' #-}
 foldr' f z = Stream.foldl' (flip f) z . streamR
 
@@ -712,72 +713,72 @@ foldr' f z = Stream.foldl' (flip f) z . streamR
 foldr1' :: Vector v a => (a -> a -> a) -> v a -> a
 {-# INLINE foldr1' #-}
 foldr1' f = Stream.foldl1' (flip f) . streamR
-
+-}
 -- | /O(n)/ Left fold (function applied to each element and its index)
-ifoldl :: Vector v b => (a -> Int -> b -> a) -> a -> v b -> a
+ifoldl :: Streamable v => (a -> Int -> Element v -> a) -> a -> v -> a
 {-# INLINE ifoldl #-}
 ifoldl f z = Stream.foldl (uncurry . f) z . Stream.indexed . stream
 
 -- | /O(n)/ Left fold with strict accumulator (function applied to each element
 -- and its index)
-ifoldl' :: Vector v b => (a -> Int -> b -> a) -> a -> v b -> a
+ifoldl' :: Streamable v => (a -> Int -> Element v -> a) -> a -> v -> a
 {-# INLINE ifoldl' #-}
 ifoldl' f z = Stream.foldl' (uncurry . f) z . Stream.indexed . stream
 
 -- | /O(n)/ Right fold (function applied to each element and its index)
-ifoldr :: Vector v a => (Int -> a -> b -> b) -> b -> v a -> b
+ifoldr :: Streamable v => (Int -> Element v -> b -> b) -> b -> v -> b
 {-# INLINE ifoldr #-}
 ifoldr f z = Stream.foldr (uncurry f) z . Stream.indexed . stream
-
+{-
 -- | /O(n)/ Right fold with strict accumulator (function applied to each
 -- element and its index)
 ifoldr' :: Vector v a => (Int -> a -> b -> b) -> b -> v a -> b
 {-# INLINE ifoldr' #-}
 ifoldr' f z xs = Stream.foldl' (flip (uncurry f)) z
                $ Stream.indexedR (length xs) $ streamR xs
-
+-}
 -- Specialised folds
 -- -----------------
 
 -- | /O(n)/ Check if all elements satisfy the predicate.
-all :: Vector v a => (a -> Bool) -> v a -> Bool
+all :: Streamable v => (Element v -> Bool) -> v -> Bool
 {-# INLINE all #-}
 all f = Stream.and . Stream.map f . stream
 
 -- | /O(n)/ Check if any element satisfies the predicate.
-any :: Vector v a => (a -> Bool) -> v a -> Bool
+any :: Streamable v => (Element v -> Bool) -> v -> Bool
 {-# INLINE any #-}
 any f = Stream.or . Stream.map f . stream
 
 -- | /O(n)/ Check if all elements are 'True'
-and :: Vector v Bool => v Bool -> Bool
+and :: (Streamable v, Element v ~ Bool) => v -> Bool
 {-# INLINE and #-}
 and = Stream.and . stream
 
 -- | /O(n)/ Check if any element is 'True'
-or :: Vector v Bool => v Bool -> Bool
+or :: (Streamable v, Element v ~ Bool) => v -> Bool
 {-# INLINE or #-}
 or = Stream.or . stream
 
 -- | /O(n)/ Compute the sum of the elements
-sum :: (Vector v a, Num a) => v a -> a
+sum :: (Streamable v, Num (Element v)) => v -> Element v
 {-# INLINE sum #-}
 sum = Stream.foldl' (+) 0 . stream
 
 -- | /O(n)/ Compute the produce of the elements
-product :: (Vector v a, Num a) => v a -> a
+product :: (Streamable v, Num (Element v)) => v -> Element v
 {-# INLINE product #-}
 product = Stream.foldl' (*) 1 . stream
 
 -- | /O(n)/ Yield the maximum element of the vector. The vector may not be
 -- empty.
-maximum :: (Vector v a, Ord a) => v a -> a
+maximum :: (Streamable v, Ord (Element v)) => v -> Element v
 {-# INLINE maximum #-}
 maximum = Stream.foldl1' max . stream
 
 -- | /O(n)/ Yield the maximum element of the vector according to the given
 -- comparison function. The vector may not be empty.
-maximumBy :: Vector v a => (a -> a -> Ordering) -> v a -> a
+maximumBy :: Streamable v => (Element v -> Element v -> Ordering) -> v -> Element v
 {-# INLINE maximumBy #-}
 maximumBy cmp = Stream.foldl1' maxBy . stream
   where
@@ -788,13 +789,13 @@ maximumBy cmp = Stream.foldl1' maxBy . stream
 
 -- | /O(n)/ Yield the minimum element of the vector. The vector may not be
 -- empty.
-minimum :: (Vector v a, Ord a) => v a -> a
+minimum :: (Streamable v, Ord (Element v)) => v -> Element v
 {-# INLINE minimum #-}
 minimum = Stream.foldl1' min . stream
 
 -- | /O(n)/ Yield the minimum element of the vector according to the given
 -- comparison function. The vector may not be empty.
-minimumBy :: Vector v a => (a -> a -> Ordering) -> v a -> a
+minimumBy :: Streamable v => (Element v -> Element v -> Ordering) -> v -> Element v
 {-# INLINE minimumBy #-}
 minimumBy cmp = Stream.foldl1' minBy . stream
   where
@@ -805,13 +806,13 @@ minimumBy cmp = Stream.foldl1' minBy . stream
 
 -- | /O(n)/ Yield the index of the maximum element of the vector. The vector
 -- may not be empty.
-maxIndex :: (Vector v a, Ord a) => v a -> Int
+maxIndex :: (Streamable v, Ord (Element v)) => v -> Int
 {-# INLINE maxIndex #-}
 maxIndex = maxIndexBy compare
 
 -- | /O(n)/ Yield the index of the maximum element of the vector according to
 -- the given comparison function. The vector may not be empty.
-maxIndexBy :: Vector v a => (a -> a -> Ordering) -> v a -> Int
+maxIndexBy :: Streamable v => (Element v -> Element v -> Ordering) -> v -> Int
 {-# INLINE maxIndexBy #-}
 maxIndexBy cmp = fst . Stream.foldl1' imax . Stream.indexed . stream
   where
@@ -822,13 +823,13 @@ maxIndexBy cmp = fst . Stream.foldl1' imax . Stream.indexed . stream
 
 -- | /O(n)/ Yield the index of the minimum element of the vector. The vector
 -- may not be empty.
-minIndex :: (Vector v a, Ord a) => v a -> Int
+minIndex :: (Streamable v, Ord (Element v)) => v -> Int
 {-# INLINE minIndex #-}
 minIndex = minIndexBy compare
 
 -- | /O(n)/ Yield the index of the minimum element of the vector according to
 -- the given comparison function. The vector may not be empty.
-minIndexBy :: Vector v a => (a -> a -> Ordering) -> v a -> Int
+minIndexBy :: Streamable v => (Element v -> Element v -> Ordering) -> v -> Int
 {-# INLINE minIndexBy #-}
 minIndexBy cmp = fst . Stream.foldl1' imin . Stream.indexed . stream
   where
@@ -841,22 +842,22 @@ minIndexBy cmp = fst . Stream.foldl1' imin . Stream.indexed . stream
 -- -------------
 
 -- | /O(n)/ Monadic fold
-foldM :: (Monad m, Vector v b) => (a -> b -> m a) -> a -> v b -> m a
+foldM :: (Monad m, Streamable v) => (a -> Element v -> m a) -> a -> v -> m a
 {-# INLINE foldM #-}
 foldM m z = Stream.foldM m z . stream
 
 -- | /O(n)/ Monadic fold over non-empty vectors
-fold1M :: (Monad m, Vector v a) => (a -> a -> m a) -> v a -> m a
+fold1M :: (Monad m, Streamable v) => (Element v -> Element v -> m (Element v)) -> v -> m (Element v)
 {-# INLINE fold1M #-}
 fold1M m = Stream.fold1M m . stream
 
 -- | /O(n)/ Monadic fold with strict accumulator
-foldM' :: (Monad m, Vector v b) => (a -> b -> m a) -> a -> v b -> m a
+foldM' :: (Monad m, Streamable v) => (a -> Element v -> m a) -> a -> v -> m a
 {-# INLINE foldM' #-}
 foldM' m z = Stream.foldM' m z . stream
 
 -- | /O(n)/ Monadic fold over non-empty vectors with strict accumulator
-fold1M' :: (Monad m, Vector v a) => (a -> a -> m a) -> v a -> m a
+fold1M' :: (Monad m, Streamable v) => (Element v -> Element v -> m (Element v)) -> v -> m (Element v)
 {-# INLINE fold1M' #-}
 fold1M' m = Stream.fold1M' m . stream
 
@@ -865,23 +866,23 @@ discard :: Monad m => m a -> m ()
 discard m = m >> return ()
 
 -- | /O(n)/ Monadic fold that discards the result
-foldM_ :: (Monad m, Vector v b) => (a -> b -> m a) -> a -> v b -> m ()
+foldM_ :: (Monad m, Streamable v) => (a -> Element v -> m a) -> a -> v -> m ()
 {-# INLINE foldM_ #-}
 foldM_ m z = discard . Stream.foldM m z . stream
 
 -- | /O(n)/ Monadic fold over non-empty vectors that discards the result
-fold1M_ :: (Monad m, Vector v a) => (a -> a -> m a) -> v a -> m ()
+fold1M_ :: (Monad m, Streamable v) => (Element v -> Element v -> m (Element v)) -> v -> m ()
 {-# INLINE fold1M_ #-}
 fold1M_ m = discard . Stream.fold1M m . stream
 
 -- | /O(n)/ Monadic fold with strict accumulator that discards the result
-foldM'_ :: (Monad m, Vector v b) => (a -> b -> m a) -> a -> v b -> m ()
+foldM'_ :: (Monad m, Streamable v) => (a -> Element v -> m a) -> a -> v -> m ()
 {-# INLINE foldM'_ #-}
 foldM'_ m z = discard . Stream.foldM' m z . stream
 
 -- | /O(n)/ Monad fold over non-empty vectors with strict accumulator
 -- that discards the result
-fold1M'_ :: (Monad m, Vector v a) => (a -> a -> m a) -> v a -> m ()
+fold1M'_ :: (Monad m, Streamable v) => (Element v -> Element v -> m (Element v)) -> v -> m ()
 {-# INLINE fold1M'_ #-}
 fold1M'_ m = discard . Stream.fold1M' m . stream
 
@@ -889,12 +890,12 @@ fold1M'_ m = discard . Stream.fold1M' m . stream
 -- ------------------
 
 -- | Evaluate each action and collect the results
-sequence :: (Monad m, Vector v a, Vector v (m a)) => v (m a) -> m (v a)
+sequence :: (Monad m, Streamable v, Streamable v', Element v ~ m (Element v')) => v -> m v'
 {-# INLINE sequence #-}
 sequence = mapM id
 
 -- | Evaluate each action and discard the results
-sequence_ :: (Monad m, Vector v (m a)) => v (m a) -> m ()
+sequence_ :: (Monad m, Streamable v, Element v ~ m a) => v -> m ()
 {-# INLINE sequence_ #-}
 sequence_ = mapM_ id
 
@@ -909,12 +910,12 @@ sequence_ = mapM_ id
 --
 -- Example: @prescanl (+) 0 \<1,2,3,4\> = \<0,1,3,6\>@
 --
-prescanl :: (Vector v a, Vector v b) => (a -> b -> a) -> a -> v b -> v a
+prescanl :: (Streamable v, Streamable v') => (Element v' -> Element v -> Element v') -> Element v' -> v -> v'
 {-# INLINE prescanl #-}
 prescanl f z = unstream . inplace (MStream.prescanl f z) . stream
 
 -- | /O(n)/ Prescan with strict accumulator
-prescanl' :: (Vector v a, Vector v b) => (a -> b -> a) -> a -> v b -> v a
+prescanl' :: (Streamable v, Streamable v') => (Element v' -> Element v -> Element v') -> Element v' -> v -> v'
 {-# INLINE prescanl' #-}
 prescanl' f z = unstream . inplace (MStream.prescanl' f z) . stream
 
@@ -926,12 +927,12 @@ prescanl' f z = unstream . inplace (MStream.prescanl' f z) . stream
 --
 -- Example: @postscanl (+) 0 \<1,2,3,4\> = \<1,3,6,10\>@
 --
-postscanl :: (Vector v a, Vector v b) => (a -> b -> a) -> a -> v b -> v a
+postscanl :: (Streamable v, Streamable v') => (Element v' -> Element v -> Element v') -> Element v' -> v -> v'
 {-# INLINE postscanl #-}
 postscanl f z = unstream . inplace (MStream.postscanl f z) . stream
 
 -- | /O(n)/ Scan with strict accumulator
-postscanl' :: (Vector v a, Vector v b) => (a -> b -> a) -> a -> v b -> v a
+postscanl' :: (Streamable v, Streamable v') => (Element v' -> Element v -> Element v') -> Element v' -> v -> v'
 {-# INLINE postscanl' #-}
 postscanl' f z = unstream . inplace (MStream.postscanl' f z) . stream
 
@@ -943,12 +944,12 @@ postscanl' f z = unstream . inplace (MStream.postscanl' f z) . stream
 --
 -- Example: @scanl (+) 0 \<1,2,3,4\> = \<0,1,3,6,10\>@
 -- 
-scanl :: (Vector v a, Vector v b) => (a -> b -> a) -> a -> v b -> v a
+scanl :: (Streamable v, Streamable v') => (Element v' -> Element v -> Element v') -> Element v' -> v -> v'
 {-# INLINE scanl #-}
 scanl f z = unstream . Stream.scanl f z . stream
 
 -- | /O(n)/ Haskell-style scan with strict accumulator
-scanl' :: (Vector v a, Vector v b) => (a -> b -> a) -> a -> v b -> v a
+scanl' :: (Streamable v, Streamable v') => (Element v' -> Element v -> Element v') -> Element v' -> v -> v'
 {-# INLINE scanl' #-}
 scanl' f z = unstream . Stream.scanl' f z . stream
 
@@ -958,14 +959,16 @@ scanl' f z = unstream . Stream.scanl' f z . stream
 -- >   where y1 = x1
 -- >         yi = f y(i-1) xi
 --
-scanl1 :: Vector v a => (a -> a -> a) -> v a -> v a
+scanl1 :: Streamable v => (Element v -> Element v -> Element v) -> v -> v
 {-# INLINE scanl1 #-}
 scanl1 f = unstream . inplace (MStream.scanl1 f) . stream
 
 -- | /O(n)/ Scan over a non-empty vector with a strict accumulator
-scanl1' :: Vector v a => (a -> a -> a) -> v a -> v a
+scanl1' :: Streamable v => (Element v -> Element v -> Element v) -> v -> v
 {-# INLINE scanl1' #-}
 scanl1' f = unstream . inplace (MStream.scanl1' f) . stream
+
+{-
 
 -- | /O(n)/ Right-to-left prescan
 --
@@ -1012,3 +1015,4 @@ scanr1 f = unstreamR . inplace (MStream.scanl1 (flip f)) . streamR
 scanr1' :: Vector v a => (a -> a -> a) -> v a -> v a
 {-# INLINE scanr1' #-}
 scanr1' f = unstreamR . inplace (MStream.scanl1' (flip f)) . streamR
+-}
